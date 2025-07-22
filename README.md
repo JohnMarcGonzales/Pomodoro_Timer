@@ -30,19 +30,5 @@ A simple, themed Pomodoro timer with customizable intervals, built in Python wit
    ```
 3. The `.exe` will be in the `dist/` folder.
 
-## How to Upload to GitHub
-
-1. [Create a new repository on GitHub](https://github.com/new)
-2. In this project folder, run:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: Pomodoro Timer"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   git push -u origin main
-   ```
-   Replace `YOUR_USERNAME` and `YOUR_REPO_NAME` with your GitHub info.
-
 ---
 Enjoy your focused work sessions! 🍅🫐 
