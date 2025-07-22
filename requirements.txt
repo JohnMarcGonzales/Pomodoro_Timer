@@ -1,0 +1,3 @@
+# No external dependencies required for running
+# For packaging as executable:
+pyinstaller 
