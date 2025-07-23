@@ -54,10 +54,12 @@ class PomodoroTimer:
         btn_frame.pack(pady=2)
         self.start_button = tk.Button(btn_frame, text="▶ Start", command=self.start_timer, font=("Arial", 11, "bold"), bg='#ff6347', fg='white', bd=0, padx=14, pady=6, activebackground='#ff826b', relief='flat', cursor='hand2')
         self.start_button.grid(row=0, column=0, padx=7)
+        self.pause_button = tk.Button(btn_frame, text="⏸ Pause", command=self.pause_timer, font=("Arial", 11, "bold"), bg='#ffa500', fg='white', bd=0, padx=14, pady=6, activebackground='#ffc04d', relief='flat', cursor='hand2')
+        self.pause_button.grid(row=0, column=1, padx=7)
         self.reset_button = tk.Button(btn_frame, text="🔄 Reset", command=self.reset_timer, font=("Arial", 11, "bold"), bg='#e0e0e0', fg='#333', bd=0, padx=14, pady=6, activebackground='#cccccc', relief='flat', cursor='hand2')
-        self.reset_button.grid(row=0, column=1, padx=7)
+        self.reset_button.grid(row=0, column=2, padx=7)
         self.skip_button = tk.Button(btn_frame, text="⏭ Skip", command=self.skip_timer, font=("Arial", 11, "bold"), bg='#4682b4', fg='white', bd=0, padx=14, pady=6, activebackground='#6a9edb', relief='flat', cursor='hand2')
-        self.skip_button.grid(row=0, column=2, padx=7)
+        self.skip_button.grid(row=0, column=3, padx=7)
 
         # Pomodoro length
         self.length_label = tk.Label(self.frame, text="Pomodoro Length (25-50 min):", font=("Arial", 10), bg='#f9f9f9', fg='#888')
@@ -65,6 +67,20 @@ class PomodoroTimer:
         self.length_var = tk.IntVar(value=25)
         self.length_spin = tk.Spinbox(self.frame, from_=25, to=50, textvariable=self.length_var, width=5, font=("Arial", 10), command=self.update_length, justify='center')
         self.length_spin.pack(pady=(0, 10))
+
+        # Short break length
+        self.short_label = tk.Label(self.frame, text="Short Break (3-15 min):", font=("Arial", 10), bg='#f9f9f9', fg='#888')
+        self.short_label.pack(pady=(0, 0))
+        self.short_var = tk.IntVar(value=5)
+        self.short_spin = tk.Spinbox(self.frame, from_=3, to=15, textvariable=self.short_var, width=5, font=("Arial", 10), command=self.update_short_length, justify='center')
+        self.short_spin.pack(pady=(0, 10))
+
+        # Long break length
+        self.long_label = tk.Label(self.frame, text="Long Break (15-60 min):", font=("Arial", 10), bg='#f9f9f9', fg='#888')
+        self.long_label.pack(pady=(0, 0))
+        self.long_var = tk.IntVar(value=40)
+        self.long_spin = tk.Spinbox(self.frame, from_=15, to=60, textvariable=self.long_var, width=5, font=("Arial", 10), command=self.update_long_length, justify='center')
+        self.long_spin.pack(pady=(0, 10))
 
         self.update_theme()
 
@@ -95,9 +111,26 @@ class PomodoroTimer:
                 self.current_time = self.pomodoro_length
                 self.update_timer_label()
 
+    def update_short_length(self):
+        val = self.short_var.get()
+        if 3 <= val <= 15:
+            self.short_break = val * 60
+            if self.state == 'Short Break':
+                self.current_time = self.short_break
+                self.update_timer_label()
+
+    def update_long_length(self):
+        val = self.long_var.get()
+        if 15 <= val <= 60:
+            self.long_break = val * 60
+            if self.state == 'Long Break':
+                self.current_time = self.long_break
+                self.update_timer_label()
+
     def start_timer(self):
         if not self.is_running:
             self.is_running = True
+            self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
             self.run_timer()
 
     def run_timer(self):
@@ -116,6 +149,7 @@ class PomodoroTimer:
         if self.timer:
             self.root.after_cancel(self.timer)
         self.is_running = False
+        self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
         if self.state == 'Pomodoro':
             self.current_time = self.pomodoro_length
         elif self.state == 'Short Break':
@@ -128,7 +162,21 @@ class PomodoroTimer:
         if self.timer:
             self.root.after_cancel(self.timer)
         self.is_running = False
+        self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
         self.cycle_state()
+
+    def pause_timer(self):
+        if self.is_running:
+            if self.timer:
+                self.root.after_cancel(self.timer)
+            self.is_running = False
+            self.pause_button.config(text="▶ Resume", command=self.resume_timer)
+
+    def resume_timer(self):
+        if not self.is_running:
+            self.is_running = True
+            self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
+            self.run_timer()
 
     def cycle_state(self):
         winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
@@ -143,7 +191,7 @@ class PomodoroTimer:
                 self.emoji_label.config(text="🍌")
                 self.long_break_done += 1
                 self.update_counters()
-                messagebox.showinfo("Long Break!", "Time for a long break! 40 minutes of rest.")
+                self.show_topmost_popup("Long Break!", "Time for a long break! 40 minutes of rest.")
             else:
                 self.state = 'Short Break'
                 self.current_time = self.short_break
@@ -151,7 +199,7 @@ class PomodoroTimer:
                 self.emoji_label.config(text="🫐")
                 self.short_break_done += 1
                 self.update_counters()
-                messagebox.showinfo("Short Break!", "Time for a short break! 5 minutes of rest.")
+                self.show_topmost_popup("Short Break!", "Time for a short break! 5 minutes of rest.")
         else:
             # After a break, show 'get back to work' popup
             self.state = 'Pomodoro'
@@ -159,11 +207,19 @@ class PomodoroTimer:
             self.state_label.config(text="Pomodoro (Red Tomato)")
             self.emoji_label.config(text="🍅")
             if self.pomodoro_count % 4 == 0:
-                messagebox.showinfo("Pomodoro Cycle Restarted!", "Back to work! Start your next Pomodoro.")
+                self.show_topmost_popup("Pomodoro Cycle Restarted!", "Back to work! Start your next Pomodoro.")
             else:
-                messagebox.showinfo("Time to Get back to work!", "Time to Get back to work!")
+                self.show_topmost_popup("Time to Get back to work!", "Time to Get back to work!")
         self.update_theme()
         self.update_timer_label()
+
+    def show_topmost_popup(self, title, message):
+        popup = tk.Toplevel(self.root)
+        popup.withdraw()
+        popup.attributes('-topmost', True)
+        popup.after(0, lambda: popup.focus_force())
+        self.root.after(10, lambda: messagebox.showinfo(title, message, parent=popup))
+        popup.after(100, popup.destroy)
 
     def update_theme(self):
         if self.state == 'Pomodoro':
