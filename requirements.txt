@@ -1,3 +1,4 @@
-# No external dependencies required for running
-# For packaging as executable:
-pyinstaller 
+# Pomodoro Timer requirements
+# Only standard Python modules are required
+# Tkinter is included with most Python installations
+# winsound is standard on Windows 

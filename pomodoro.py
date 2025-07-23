@@ -1,253 +1,239 @@
 import tkinter as tk
 from tkinter import messagebox
 import winsound
+import json
+import os
 
-class PomodoroTimer:
+# --- Constants for themes and limits ---
+THEMES = {
+    'pomodoro': {'color': '#ff6347', 'emoji': '🍅', 'label': 'Pomodoro (Tomato)'},
+    'short': {'color': '#4682b4', 'emoji': '🫐', 'label': 'Short Break (Blueberry)'},
+    'long': {'color': '#e6b800', 'emoji': '🍌', 'label': 'Long Break (Banana)'}
+}
+LIMITS = {
+    'pomodoro': (25, 50),
+    'short': (5, 15),
+    'long': (40, 120)
+}
+HISTORY_FILE = 'history.json'
+
+class PomodoroApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("🍅 Pomodoro Timer")
-        self.pomodoro_count = 0
-        self.is_running = False
-        self.timer = None
-        self.pomodoro_length = 25 * 60  # default 25 mins
-        self.short_break = 5 * 60
-        self.long_break = 40 * 60
-        self.current_time = self.pomodoro_length
-        self.state = 'Pomodoro'  # or 'Short Break' or 'Long Break'
-        # Counters
-        self.pomodoro_done = 0
-        self.short_break_done = 0
-        self.long_break_done = 0
+        self.root.title('🍅 Pomodoro Timer')
+        self.root.geometry('480x600')
+        self.root.minsize(420, 540)
+        self.root.resizable(True, True)
+        self.center_window()
+        self.root.protocol('WM_DELETE_WINDOW', self.save_history)
 
-        # UI
-        self.window_width = 340
-        self.window_height = 390
-        self.center_window(self.window_width, self.window_height)
-        self.root.resizable(False, False)
+        # --- Timer state ---
+        self.state = 'pomodoro'  # 'pomodoro', 'short', 'long'
+        self.is_running = False
+        self.is_paused = False
+        self.timer = None
+        self.pomodoro_count = 0
+        self.time_left = 25 * 60
+        self.durations = {
+            'pomodoro': 25 * 60,
+            'short': 5 * 60,
+            'long': 40 * 60
+        }
+        # --- History and counters ---
+        self.history = self.load_history()
+        self.counters = {'pomodoro': 0, 'short': 0, 'long': 0}
+
+        # --- UI ---
+        self.build_ui()
+        self.update_ui()
+
+    # --- UI Construction ---
+    def build_ui(self):
         self.frame = tk.Frame(self.root, bg='#f9f9f9')
         self.frame.pack(fill='both', expand=True)
 
-        self.title_label = tk.Label(self.frame, text="🍅 Pomodoro Timer", font=("Arial", 17, "bold"), bg='#f9f9f9', fg='#ff6347')
-        self.title_label.pack(pady=(14, 2))
+        # Title and emoji
+        self.title_label = tk.Label(self.frame, text='🍅 Pomodoro Timer', font=('Arial', 22, 'bold'), bg='#f9f9f9')
+        self.title_label.pack(pady=(18, 6))
+        self.emoji_label = tk.Label(self.frame, text=THEMES['pomodoro']['emoji'], font=('Arial', 54), bg='#f9f9f9')
+        self.emoji_label.pack(pady=(0, 6))
+        self.timer_label = tk.Label(self.frame, text=self.format_time(self.time_left), font=('Arial Rounded MT Bold', 54, 'bold'), bg='#f9f9f9')
+        self.timer_label.pack(pady=(0, 8))
+        self.state_label = tk.Label(self.frame, text=THEMES['pomodoro']['label'], font=('Arial', 15, 'bold'), bg='#f9f9f9')
+        self.state_label.pack(pady=(0, 14))
 
-        self.emoji_label = tk.Label(self.frame, text="🍅", font=("Arial", 38), bg='#f9f9f9')
-        self.emoji_label.pack(pady=(0, 0))
-
-        self.timer_label = tk.Label(self.frame, text="⏰ " + self.format_time(self.current_time), font=("Arial Rounded MT Bold", 44, "bold"), bg='#f9f9f9', fg='#222')
-        self.timer_label.pack(pady=(0, 2))
-
-        self.state_label = tk.Label(self.frame, text="Pomodoro (Red Tomato)", font=("Arial", 13, "bold"), bg='#f9f9f9', fg='#ff6347')
-        self.state_label.pack(pady=(0, 8))
-
-        # Counter bar with rounded look
+        # Counters
         self.counter_bar = tk.Frame(self.frame, bg='#fff', bd=0, highlightbackground='#e0e0e0', highlightthickness=1)
-        self.counter_bar.pack(pady=(0, 10), padx=18, fill='x')
-        self.counter_label = tk.Label(self.counter_bar, text=self.get_counter_text(), font=("Arial", 11, "bold"), bg='#fff', fg='#444', pady=6)
+        self.counter_bar.pack(pady=(0, 16), fill='x')
+        self.counter_label = tk.Label(self.counter_bar, text=self.get_counter_text(), font=('Arial', 13, 'bold'), bg='#fff', pady=10)
         self.counter_label.pack(fill='x')
 
-        # Separator
-        self.separator = tk.Frame(self.frame, height=2, bg='#ececec')
-        self.separator.pack(fill='x', padx=18, pady=(0, 10))
+        # History
+        self.history_label = tk.Label(self.frame, text=self.get_history_text(), font=('Arial', 10), bg='#f9f9f9', fg='#888', justify='center')
+        self.history_label.pack(pady=(0, 10))
 
-        # Button row
+        # Controls
         btn_frame = tk.Frame(self.frame, bg='#f9f9f9')
-        btn_frame.pack(pady=2)
-        self.start_button = tk.Button(btn_frame, text="▶ Start", command=self.start_timer, font=("Arial", 11, "bold"), bg='#ff6347', fg='white', bd=0, padx=14, pady=6, activebackground='#ff826b', relief='flat', cursor='hand2')
-        self.start_button.grid(row=0, column=0, padx=7)
-        self.pause_button = tk.Button(btn_frame, text="⏸ Pause", command=self.pause_timer, font=("Arial", 11, "bold"), bg='#ffa500', fg='white', bd=0, padx=14, pady=6, activebackground='#ffc04d', relief='flat', cursor='hand2')
-        self.pause_button.grid(row=0, column=1, padx=7)
-        self.reset_button = tk.Button(btn_frame, text="🔄 Reset", command=self.reset_timer, font=("Arial", 11, "bold"), bg='#e0e0e0', fg='#333', bd=0, padx=14, pady=6, activebackground='#cccccc', relief='flat', cursor='hand2')
-        self.reset_button.grid(row=0, column=2, padx=7)
-        self.skip_button = tk.Button(btn_frame, text="⏭ Skip", command=self.skip_timer, font=("Arial", 11, "bold"), bg='#4682b4', fg='white', bd=0, padx=14, pady=6, activebackground='#6a9edb', relief='flat', cursor='hand2')
-        self.skip_button.grid(row=0, column=3, padx=7)
+        btn_frame.pack(pady=6)
+        self.start_btn = tk.Button(btn_frame, text='▶ Start', command=self.start_timer, font=('Arial', 13, 'bold'), bg='#ff6347', fg='white', bd=0, padx=18, pady=8, activebackground='#ff826b', relief='flat', cursor='hand2')
+        self.start_btn.grid(row=0, column=0, padx=10)
+        self.pause_btn = tk.Button(btn_frame, text='⏸ Pause', command=self.pause_timer, font=('Arial', 13, 'bold'), bg='#ffa500', fg='white', bd=0, padx=18, pady=8, activebackground='#ffc04d', relief='flat', cursor='hand2')
+        self.pause_btn.grid(row=0, column=1, padx=10)
+        self.reset_btn = tk.Button(btn_frame, text='🔄 Reset', command=self.reset_timer, font=('Arial', 13, 'bold'), bg='#e0e0e0', fg='#333', bd=0, padx=18, pady=8, activebackground='#cccccc', relief='flat', cursor='hand2')
+        self.reset_btn.grid(row=0, column=2, padx=10)
+        self.skip_btn = tk.Button(btn_frame, text='⏭ Skip', command=self.skip_timer, font=('Arial', 13, 'bold'), bg='#4682b4', fg='white', bd=0, padx=18, pady=8, activebackground='#6a9edb', relief='flat', cursor='hand2')
+        self.skip_btn.grid(row=0, column=3, padx=10)
+        # Exit button
+        self.exit_btn = tk.Button(btn_frame, text='❌ Exit', command=self.exit_app, font=('Arial', 13, 'bold'), bg='#d9534f', fg='white', bd=0, padx=18, pady=8, activebackground='#e57373', relief='flat', cursor='hand2')
+        self.exit_btn.grid(row=0, column=4, padx=10)
 
-        # Pomodoro length
-        self.length_label = tk.Label(self.frame, text="Pomodoro Length (25-50 min):", font=("Arial", 10), bg='#f9f9f9', fg='#888')
-        self.length_label.pack(pady=(12, 0))
-        self.length_var = tk.IntVar(value=25)
-        self.length_spin = tk.Spinbox(self.frame, from_=25, to=50, textvariable=self.length_var, width=5, font=("Arial", 10), command=self.update_length, justify='center')
-        self.length_spin.pack(pady=(0, 10))
+        # Duration controls
+        self.length_frame = tk.Frame(self.frame, bg='#f9f9f9')
+        self.length_frame.pack(pady=(18, 0))
+        self.add_duration_control('Pomodoro', 'pomodoro', 0)
+        self.add_duration_control('Short Break', 'short', 1)
+        self.add_duration_control('Long Break', 'long', 2)
 
-        # Short break length
-        self.short_label = tk.Label(self.frame, text="Short Break (3-15 min):", font=("Arial", 10), bg='#f9f9f9', fg='#888')
-        self.short_label.pack(pady=(0, 0))
-        self.short_var = tk.IntVar(value=5)
-        self.short_spin = tk.Spinbox(self.frame, from_=3, to=15, textvariable=self.short_var, width=5, font=("Arial", 10), command=self.update_short_length, justify='center')
-        self.short_spin.pack(pady=(0, 10))
+    def add_duration_control(self, label, key, row):
+        minv, maxv = LIMITS[key]
+        tk.Label(self.length_frame, text=f'{label} ({minv}-{maxv} min):', font=('Arial', 12), bg='#f9f9f9', fg='#888').grid(row=row, column=0, sticky='e', padx=6, pady=4)
+        var = tk.IntVar(value=self.durations[key] // 60)
+        spin = tk.Spinbox(self.length_frame, from_=minv, to=maxv, textvariable=var, width=6, font=('Arial', 12), command=lambda k=key, v=var: self.set_duration(k, v), justify='center')
+        spin.grid(row=row, column=1, padx=6, pady=4)
+        setattr(self, f'{key}_var', var)
 
-        # Long break length
-        self.long_label = tk.Label(self.frame, text="Long Break (15-60 min):", font=("Arial", 10), bg='#f9f9f9', fg='#888')
-        self.long_label.pack(pady=(0, 0))
-        self.long_var = tk.IntVar(value=40)
-        self.long_spin = tk.Spinbox(self.frame, from_=15, to=60, textvariable=self.long_var, width=5, font=("Arial", 10), command=self.update_long_length, justify='center')
-        self.long_spin.pack(pady=(0, 10))
-
-        self.update_theme()
-
-    def get_counter_text(self):
-        return f"🍅 {self.pomodoro_done}   🫐 {self.short_break_done}   🍌 {self.long_break_done}"
-
-    def update_counters(self):
-        self.counter_label.config(text=self.get_counter_text())
-
-    def center_window(self, width, height):
-        self.root.update_idletasks()
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        x = (screen_width // 2) - (width // 2)
-        y = (screen_height // 2) - (height // 2)
-        self.root.geometry(f"{width}x{height}+{x}+{y}")
-
-    def format_time(self, seconds):
-        mins = seconds // 60
-        secs = seconds % 60
-        return f"{mins:02d}:{secs:02d}"
-
-    def update_length(self):
-        val = self.length_var.get()
-        if 25 <= val <= 50:
-            self.pomodoro_length = val * 60
-            if self.state == 'Pomodoro':
-                self.current_time = self.pomodoro_length
-                self.update_timer_label()
-
-    def update_short_length(self):
-        val = self.short_var.get()
-        if 3 <= val <= 15:
-            self.short_break = val * 60
-            if self.state == 'Short Break':
-                self.current_time = self.short_break
-                self.update_timer_label()
-
-    def update_long_length(self):
-        val = self.long_var.get()
-        if 15 <= val <= 60:
-            self.long_break = val * 60
-            if self.state == 'Long Break':
-                self.current_time = self.long_break
-                self.update_timer_label()
-
+    # --- Timer Logic ---
     def start_timer(self):
         if not self.is_running:
             self.is_running = True
-            self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
+            self.is_paused = False
             self.run_timer()
 
     def run_timer(self):
-        if self.current_time > 0:
-            self.update_timer_label()
-            self.current_time -= 1
-            self.timer = self.root.after(1000, self.run_timer)
-        else:
-            self.is_running = False
-            self.cycle_state()
+        if self.is_running and not self.is_paused:
+            if self.time_left > 0:
+                self.update_ui()
+                self.time_left -= 1
+                self.timer = self.root.after(1000, self.run_timer)
+            else:
+                self.is_running = False
+                self.handle_cycle_end()
 
-    def update_timer_label(self):
-        self.timer_label.config(text="⏰ " + self.format_time(self.current_time))
+    def pause_timer(self):
+        if self.is_running:
+            self.is_paused = not self.is_paused
+            if not self.is_paused:
+                self.run_timer()
+            self.update_ui()
 
     def reset_timer(self):
         if self.timer:
             self.root.after_cancel(self.timer)
         self.is_running = False
-        self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
-        if self.state == 'Pomodoro':
-            self.current_time = self.pomodoro_length
-        elif self.state == 'Short Break':
-            self.current_time = self.short_break
-        else:
-            self.current_time = self.long_break
-        self.update_timer_label()
+        self.is_paused = False
+        self.time_left = self.durations[self.state]
+        self.update_ui()
 
     def skip_timer(self):
         if self.timer:
             self.root.after_cancel(self.timer)
         self.is_running = False
-        self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
-        self.cycle_state()
+        self.is_paused = False
+        self.handle_cycle_end()
 
-    def pause_timer(self):
-        if self.is_running:
-            if self.timer:
-                self.root.after_cancel(self.timer)
-            self.is_running = False
-            self.pause_button.config(text="▶ Resume", command=self.resume_timer)
-
-    def resume_timer(self):
-        if not self.is_running:
-            self.is_running = True
-            self.pause_button.config(text="⏸ Pause", command=self.pause_timer)
-            self.run_timer()
-
-    def cycle_state(self):
-        winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
-        if self.state == 'Pomodoro':
-            self.pomodoro_done += 1
-            self.update_counters()
+    def handle_cycle_end(self):
+        winsound.PlaySound('SystemAsterisk', winsound.SND_ALIAS)
+        self.counters[self.state] += 1
+        self.save_history()
+        self.show_popup(f'{THEMES[self.state]["label"]} Ended!', f'Time for the next step!')
+        if self.state == 'pomodoro':
             self.pomodoro_count += 1
             if self.pomodoro_count % 4 == 0:
-                self.state = 'Long Break'
-                self.current_time = self.long_break
-                self.state_label.config(text="Long Break (Banana)")
-                self.emoji_label.config(text="🍌")
-                self.long_break_done += 1
-                self.update_counters()
-                self.show_topmost_popup("Long Break!", "Time for a long break! 40 minutes of rest.")
+                self.state = 'long'
             else:
-                self.state = 'Short Break'
-                self.current_time = self.short_break
-                self.state_label.config(text="Short Break (Blueberry)")
-                self.emoji_label.config(text="🫐")
-                self.short_break_done += 1
-                self.update_counters()
-                self.show_topmost_popup("Short Break!", "Time for a short break! 5 minutes of rest.")
+                self.state = 'short'
         else:
-            # After a break, show 'get back to work' popup
-            self.state = 'Pomodoro'
-            self.current_time = self.pomodoro_length
-            self.state_label.config(text="Pomodoro (Red Tomato)")
-            self.emoji_label.config(text="🍅")
-            if self.pomodoro_count % 4 == 0:
-                self.show_topmost_popup("Pomodoro Cycle Restarted!", "Back to work! Start your next Pomodoro.")
-            else:
-                self.show_topmost_popup("Time to Get back to work!", "Time to Get back to work!")
-        self.update_theme()
-        self.update_timer_label()
+            self.state = 'pomodoro'
+        self.time_left = self.durations[self.state]
+        self.update_ui()
 
-    def show_topmost_popup(self, title, message):
+    # --- Duration and UI Updates ---
+    def set_duration(self, key, var):
+        val = var.get()
+        minv, maxv = LIMITS[key]
+        if minv <= val <= maxv:
+            self.durations[key] = val * 60
+            if self.state == key:
+                self.time_left = self.durations[key]
+                self.update_ui()
+
+    def update_ui(self):
+        theme = THEMES[self.state]
+        self.emoji_label.config(text=theme['emoji'])
+        self.timer_label.config(text=self.format_time(self.time_left))
+        self.state_label.config(text=theme['label'], fg=theme['color'])
+        self.title_label.config(fg=theme['color'])
+        self.counter_label.config(text=self.get_counter_text())
+        self.history_label.config(text=self.get_history_text())
+        # Button states
+        if self.is_running and not self.is_paused:
+            self.start_btn.config(state='disabled')
+            self.pause_btn.config(text='⏸ Pause', state='normal')
+        elif self.is_running and self.is_paused:
+            self.start_btn.config(state='disabled')
+            self.pause_btn.config(text='▶ Resume', state='normal')
+        else:
+            self.start_btn.config(state='normal')
+            self.pause_btn.config(text='⏸ Pause', state='disabled')
+
+    # --- Utility Functions ---
+    def format_time(self, seconds):
+        mins = seconds // 60
+        secs = seconds % 60
+        return f'{mins:02d}:{secs:02d}'
+
+    def get_counter_text(self):
+        return f"🍅 {self.counters['pomodoro']}   🫐 {self.counters['short']}   🍌 {self.counters['long']}"
+
+    def get_history_text(self):
+        return f"History: Pomodoros: {self.history.get('pomodoro', 0)}, Short: {self.history.get('short', 0)}, Long: {self.history.get('long', 0)}"
+
+    def show_popup(self, title, message):
         popup = tk.Toplevel(self.root)
         popup.withdraw()
         popup.attributes('-topmost', True)
         popup.after(0, lambda: popup.focus_force())
-        self.root.after(10, lambda: messagebox.showinfo(title, message, parent=popup))
-        popup.after(100, popup.destroy)
+        messagebox.showinfo(title, message, parent=popup)
+        popup.destroy()
 
-    def update_theme(self):
-        if self.state == 'Pomodoro':
-            self.frame.config(bg='#f9f9f9')
-            self.title_label.config(bg='#f9f9f9', fg='#ff6347')
-            self.timer_label.config(bg='#f9f9f9', fg='#222')
-            self.state_label.config(bg='#f9f9f9', fg='#ff6347')
-            self.length_label.config(bg='#f9f9f9', fg='#888')
-            self.counter_bar.config(bg='#fff', highlightbackground='#e0e0e0')
-            self.counter_label.config(bg='#fff', fg='#444')
-        elif self.state == 'Short Break':
-            self.frame.config(bg='#f9f9f9')
-            self.title_label.config(bg='#f9f9f9', fg='#4682b4')
-            self.timer_label.config(bg='#f9f9f9', fg='#222')
-            self.state_label.config(bg='#f9f9f9', fg='#4682b4')
-            self.length_label.config(bg='#f9f9f9', fg='#888')
-            self.counter_bar.config(bg='#fff', highlightbackground='#b3d1f7')
-            self.counter_label.config(bg='#fff', fg='#4682b4')
-        else:  # Long Break
-            self.frame.config(bg='#fffbe7')  # light yellow
-            self.title_label.config(bg='#fffbe7', fg='#e6b800')
-            self.timer_label.config(bg='#fffbe7', fg='#222')
-            self.state_label.config(bg='#fffbe7', fg='#e6b800')
-            self.length_label.config(bg='#fffbe7', fg='#b3a76d')
-            self.counter_bar.config(bg='#fff', highlightbackground='#ffe066')
-            self.counter_label.config(bg='#fff', fg='#e6b800')
+    def center_window(self):
+        self.root.update_idletasks()
+        w = self.root.winfo_width()
+        h = self.root.winfo_height()
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        x = (sw // 2) - (w // 2)
+        y = (sh // 2) - (h // 2)
+        self.root.geometry(f'+{x}+{y}')
 
-if __name__ == "__main__":
+    # --- History Persistence ---
+    def load_history(self):
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        return {'pomodoro': 0, 'short': 0, 'long': 0}
+
+    def save_history(self):
+        for k in self.counters:
+            self.history[k] = self.history.get(k, 0) + self.counters[k]
+        with open(HISTORY_FILE, 'w') as f:
+            json.dump(self.history, f)
+
+    def exit_app(self):
+        self.save_history()
+        self.root.destroy()
+
+if __name__ == '__main__':
     root = tk.Tk()
-    app = PomodoroTimer(root)
+    app = PomodoroApp(root)
     root.mainloop() 
