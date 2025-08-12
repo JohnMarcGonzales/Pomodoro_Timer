@@ -45,6 +45,142 @@ A modern, themed Pomodoro timer app with adjustable durations, history tracking,
 - Python 3.x
 - Tkinter (usually included with Python)
 
+Optional (enable notifications & tray icon):
+
+- win10toast (Windows toast notifications)
+- pystray + pillow (system tray icon support)
+
+## Build Windows EXE
+
+You can bundle the app into a single Windows executable using PyInstaller.
+
+1. Install dependencies:
+  ```powershell
+  pip install pyinstaller win10toast pystray pillow
+  ```
+2. Build (basic):
+  ```powershell
+  pyinstaller --onefile --windowed --name PomodoroTimer pomodoro.py
+  ```
+3. (Optional) Include an icon (place tomato.ico in project root):
+  ```powershell
+  pyinstaller --onefile --windowed --icon tomato.ico --name PomodoroTimer pomodoro.py
+  ```
+4. Resulting EXE will be in `dist/PomodoroTimer.exe`.
+
+### Data Persistence Location
+
+History and settings are stored in (priority order):
+
+1. Path set via env var `POMODORO_DATA_DIR` (if defined)
+2. `%APPDATA%\PomodoroTimer` (default on Windows)
+3. `<exe folder>\data` (when frozen and no APPDATA)
+4. User home `~/.pomodoro_timer` (fallback)
+
+This keeps your stats across upgrades. To create a portable copy, set `POMODORO_DATA_DIR` to a relative folder before launching the EXE.
+
+Example (PowerShell):
+```powershell
+$env:POMODORO_DATA_DIR = "$PWD\portable_data"; .\PomodoroTimer.exe
+```
+
+### Using a Script
+
+You can create a PowerShell script (build_exe.ps1):
+```powershell
+param([switch]$Clean,[string]$Name='PomodoroTimer')
+if($Clean){ Remove-Item -Recurse -Force dist,build -ErrorAction SilentlyContinue }
+if(-not (Get-Command pyinstaller -ErrorAction SilentlyContinue)){ pip install pyinstaller }
+$icon=''; if(Test-Path 'tomato.ico'){ $icon='--icon tomato.ico' }
+pyinstaller --onefile --windowed $icon --name $Name pomodoro.py
+```
+
+Optional (enable notifications & tray icon):
+
+- win10toast (Windows toast notifications)
+- pystray + pillow (system tray icon support)
+
+## Build Windows EXE
+
+You can bundle the app into a single Windows executable using PyInstaller.
+
+1. Install dependencies:
+  ```powershell
+  pip install pyinstaller win10toast pystray pillow
+  ```
+2. Build (basic):
+  ```powershell
+  pyinstaller --onefile --windowed --name PomodoroTimer pomodoro.py
+  ```
+3. (Optional) Include an icon (place tomato.ico in project root):
+  ```powershell
+  pyinstaller --onefile --windowed --icon tomato.ico --name PomodoroTimer pomodoro.py
+  ```
+4. Resulting EXE will be in `dist/PomodoroTimer.exe`.
+
+### Data Persistence Location
+
+History and settings are stored in (priority order):
+
+1. Path set via env var `POMODORO_DATA_DIR` (if defined)
+2. `%APPDATA%\PomodoroTimer` (default on Windows)
+3. `<exe folder>\data` (when frozen and no APPDATA)
+4. User home `~/.pomodoro_timer` (fallback)
+
+This keeps your stats across upgrades. To create a portable copy, set `POMODORO_DATA_DIR` to a relative folder before launching the EXE.
+
+Example (PowerShell):
+```powershell
+$env:POMODORO_DATA_DIR = "$PWD\portable_data"; .\PomodoroTimer.exe
+```
+
+### Using the Provided Script
+
+You can also run `powershell -File build_exe.ps1` which auto-adds the icon if present.
+
+Optional (enable notifications & tray icon):
+
+- win10toast (Windows toast notifications)
+- pystray + pillow (system tray icon support)
+
+## Build Windows EXE
+
+You can bundle the app into a single Windows executable using PyInstaller.
+
+1. Install dependencies:
+  ```powershell
+  pip install pyinstaller win10toast pystray pillow
+  ```
+2. Build (basic):
+  ```powershell
+  pyinstaller --onefile --windowed --name PomodoroTimer pomodoro.py
+  ```
+3. (Optional) Include an icon (place tomato.ico in project root):
+  ```powershell
+  pyinstaller --onefile --windowed --icon tomato.ico --name PomodoroTimer pomodoro.py
+  ```
+4. Resulting EXE will be in `dist/PomodoroTimer.exe`.
+
+### Data Persistence Location
+
+History and settings are stored in (priority order):
+
+1. Path set via env var `POMODORO_DATA_DIR` (if defined)
+2. `%APPDATA%\PomodoroTimer` (default on Windows)
+3. `<exe folder>\data` (when frozen and no APPDATA)
+4. User home `~/.pomodoro_timer` (fallback)
+
+This keeps your stats across upgrades. To create a portable copy, set `POMODORO_DATA_DIR` to a relative folder before launching the EXE.
+
+Example (PowerShell):
+```powershell
+$env:POMODORO_DATA_DIR = "$PWD\portable_data"; .\PomodoroTimer.exe
+```
+
+### Using the Provided Script
+
+You can also run `powershell -File build_exe.ps1` which auto-adds the icon if present.
+
 ## Customization
 - Change theme colors or emojis in the `THEMES` dictionary.
 - Adjust allowed duration ranges in the `LIMITS` dictionary.

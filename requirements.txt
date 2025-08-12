@@ -2,3 +2,8 @@
 # Only standard Python modules are required
 # Tkinter is included with most Python installations
 # winsound is standard on Windows 
+
+# Optional (enable notifications & tray icon)
+# win10toast==0.9
+# pystray==0.19.5
+# pillow==10.3.0
